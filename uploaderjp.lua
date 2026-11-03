@@ -624,6 +624,11 @@ wget.callbacks.write_to_warc = function(url, http_stat)
     return false
   end
 
+  if status_code == 404 then
+    abort_item()
+    return false
+  end
+
   if http_stat["res"] < 0 then
     return false
   end
