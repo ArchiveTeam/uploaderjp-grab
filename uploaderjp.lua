@@ -473,7 +473,6 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
         check(url, "q=age_confirmation")
         return urls
       elseif item_type == "file" then
-        local filename = encode_field(decode_html(string.match(html, "<th[^>]*>ファイル</th>%s*<td>([^<]+)</td>")))
         local form = string.match(html, "<form[^>]+name=\"agree\"[^>]*>(.-)</form>")
         local body_data = nil
         if form then
@@ -491,6 +490,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
           local download_url = string.match(html, "<a href=\"([^\"]+)\"[^>]*>Download Now</a>")
           if download_url then
             check(download_url)
+            --[[
             if not context["others"] then
               context["others"] = true
               local path = string.match(download_url, "^https?://[^/]+(/.+)$")
@@ -498,8 +498,11 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
                 check("https://" .. host .. path)
               end
             end
+            --]]
           end
         end
+        --[[
+        local filename = encode_field(decode_html(string.match(html, "<th[^>]*>ファイル</th>%s*<td>([^<]+)</td>")))
         local base, server, nickname, file_id = string.match(url, "^(https?://(u[a-zA-Z0-9]*)%.getuploader%.com/([^/]+)/download/([0-9]+))")
         check(base .. "/" .. filename)
         local number = string.match(server, "^u([0-9]+)$")
@@ -513,6 +516,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
         }) do
           check("https://" .. host .. path)
         end
+        --]]
       elseif path == "" or path == "/" or path == "/thumbnail" then
         local count = tonumber(string.match(html, "<th>ファイル</th>%s*<td>([0-9]+) ファイル</td>"))
         local per_page = 15
