@@ -9,6 +9,7 @@ import os
 import re
 import shutil
 import socket
+import subprocess
 import sys
 import time
 
@@ -72,7 +73,7 @@ if not WGET_AT:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20261105.01'
+VERSION = '20261110.01'
 TRACKER_ID = 'uploaderjp'
 TRACKER_HOST = 'legacy-api.arpa.li'
 MULTI_ITEM_SIZE = 1
@@ -110,9 +111,55 @@ class CheckIP(SimpleTask):
                 raise Exception(
                     'Are you behind a firewall/proxy? That is a big no-no!')
 
+        item.log_output('Checking uploader.jp access.')
+        command = [
+            WGET_AT,
+            '-nv',
+            '--no-hsts',
+            '--host-lookups', 'dns',
+            '--hosts-file', '/dev/null',
+            '--resolvconf-file', '/dev/null',
+            '--dns-servers', ','.join([
+                '1.1.1.1',
+                '1.0.0.1',
+                '2606:4700:4700::1111',
+                '2606:4700:4700::1001',
+            ]),
+            '--reject-reserved-subnets',
+            '--output-document', '-',
+            '--max-redirect', '0',
+            '--save-headers',
+            '--timeout', '10',
+            '--connect-timeout', '10',
+            '--tries', '1',
+            '--impersonate', 'firefox148-h1',
+            '--header', 'Accept-Encoding: identity',
+        ]
+        if 'bind_address' in globals():
+            command.extend(['--bind-address', globals()['bind_address']])
+        for base in (
+            'https://uu.getuploader.com/luppi03/',
+            'https://u1.getuploader.com/sample/'
+        ):
+            url = base + 'rss'
+            returned = subprocess.run(
+                command+[url],
+                timeout=20,
+                capture_output=True
+            )
+            assert returned.returncode == 0, 'Invalid return code {} on {}.'.format(returned.returncode, url)
+            assert re.match(rb'^HTTP/1\.1 200 OK\r\n', returned.stdout), 'Bad stdout on {}, got {}.'.format(url, repr(returned.stdout))
+            data = returned.stdout.split(b'\r\n\r\n', 1)[1]
+            rss = re.search(
+                rb'<rss version="2\.0">\s*<channel>.*?<link>([^<]+)</link>.*?</channel>\s*</rss>\s*$',
+                data,
+                re.S
+            )
+            assert rss is not None and rss.group(1) == bytes(base, 'utf8'), 'Bad RSS on {}, got {}.'.format(url, repr(data))
+
         # Check only occasionally
         if self._counter <= 0:
-            self._counter = 10
+            self._counter = 20
         else:
             self._counter -= 1
 
