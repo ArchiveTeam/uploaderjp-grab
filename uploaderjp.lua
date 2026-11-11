@@ -628,7 +628,11 @@ wget.callbacks.write_to_warc = function(url, http_stat)
     return false
   end
 
-  if status_code == 404 then
+  if status_code == 404
+    and not (
+      item_type == "file"
+      and string.match(url["url"], "^https?://u[a-zA-Z0-9]*%.getuploader%.com/[^/%?#]+/download/[0-9]+$")
+    ) then
     abort_item()
     return false
   end
@@ -662,11 +666,7 @@ wget.callbacks.write_to_warc = function(url, http_stat)
       and not string.match(url["url"], "^https?://www[0-9]*%.uploader%.jp/home/[^/%?#]+/$")
     )
     or redirect
-    or (
-      status_code == 404
-      and item_type == "file"
-      and not string.match(url["url"], "^https?://d[a-zA-Z0-9]*%.getuploader%.com/g/")
-    )
+    or status_code == 404
   ) then
     retry_url = true
     return false
@@ -887,7 +887,17 @@ wget.callbacks.write_to_warc = function(url, http_stat)
       end
     end
   elseif status_code == 404 then
-    if not string.match(read_file(http_stat["local_file"]), "<title>404 Not Found | uploader%.jp</title>") then
+    local html = read_file(http_stat["local_file"])
+    if not (
+      (
+        string.match(html, "<title>404 Not Found | uploader%.jp</title>")
+        and string.match(html, "<p>あなたが要求したファイルは存在しません。削除されたか、アドレスが間違っています。</p>")
+      )
+      or (
+        string.match(html, "<title>ユーザーが存在しません | uploader%.jp</title>")
+        and string.match(html, "<p>アドレスが間違っているか、ユーザーが存在しないため、アクセスできません。</p>")
+      )
+    ) then
       retry_url = true
       return false
     end
