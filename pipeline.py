@@ -4,7 +4,6 @@ import datetime
 from distutils.version import StrictVersion
 import gzip
 import hashlib
-import json
 import os
 import re
 import shutil
@@ -73,7 +72,7 @@ if not WGET_AT:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20261112.01'
+VERSION = '20261112.02'
 TRACKER_ID = 'uploaderjp'
 TRACKER_HOST = 'legacy-api.arpa.li'
 MULTI_ITEM_SIZE = 1
@@ -413,7 +412,6 @@ class WgetArgs(object):
             '--header', 'Accept-Encoding: identity'
         ]
 
-        passwords = {}
         for item_name in item['item_name'].split('\0'):
             wget_args.extend(['--warc-header', 'x-wget-at-project-item-name: '+item_name])
             wget_args.append('item-name://'+item_name)
@@ -423,11 +421,7 @@ class WgetArgs(object):
                 wget_args.extend(['--warc-header', 'uploaderjp-uploader: '+item_value])
                 wget_args.append('https://'+server+'.getuploader.com/'+unquote(nickname)+'/')
             elif item_type == 'file':
-                fields = item_value.split(':', 3)
-                server, nickname, file_id = fields[:3]
-                item_value = ':'.join(fields[:3])
-                if len(fields) == 4:
-                    passwords['file:'+item_value] = fields[3]
+                server, nickname, file_id = item_value.split(':')
                 wget_args.extend(['--warc-header', 'uploaderjp-file: '+item_value])
                 wget_args.append('https://{}.getuploader.com/{}/download/{}'.format(server, unquote(nickname), file_id))
             elif item_type in ('page', 'asset'):
@@ -435,8 +429,6 @@ class WgetArgs(object):
                 wget_args.append('https://'+item_value)
             else:
                 raise Exception('Unknown item')
-
-        item['passwords'] = json.dumps(passwords)
 
         if 'bind_address' in globals():
             wget_args.extend(['--bind-address', globals()['bind_address']])
@@ -476,8 +468,7 @@ pipeline = Pipeline(
         accept_on_exit_code=[0, 4, 8],
         env={
             'item_dir': ItemValue('item_dir'),
-            'warc_file_base': ItemValue('warc_file_base'),
-            'passwords': ItemValue('passwords')
+            'warc_file_base': ItemValue('warc_file_base')
         }
     ),
     CheckIntegrity(),

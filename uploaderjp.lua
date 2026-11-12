@@ -9,7 +9,6 @@ local zlib = require("zlib")
 
 local item_dir = os.getenv("item_dir")
 local warc_file_base = os.getenv("warc_file_base")
-local passwords = cjson.decode(os.getenv("passwords"))
 local item_type = nil
 local item_name = nil
 local item_key = nil
@@ -23,6 +22,7 @@ local abortgrab = false
 local killgrab = false
 local logged_response = false
 local status_code = 0
+local request_body = nil
 
 local discovered_outlinks = {}
 local discovered_items = {}
@@ -225,9 +225,6 @@ set_item = function(url)
       }
       item_key = new_item_key
       item_name = item_key
-      if passwords[item_key] then
-        item_name = item_name .. ":" .. passwords[item_key]
-      end
       item_value = new_item_value
       item_type = new_item_type
       ids[url] = true
@@ -336,6 +333,8 @@ age_confirmation = function(html)
   return string.match(html, "<title>年齢確認 | uploader%.jp</title>")
     and string.match(html, "<form[^>]+method=\"POST\"[^>]*>.-<input type=\"hidden\" name=\"q\" value=\"age_confirmation\"[^>]*>.-</form>")
 end
+
+local password_candidates = nil
 
 wget.callbacks.get_urls = function(file, url, is_css, iri)
   local urls = {}
@@ -478,7 +477,34 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
         if form then
           local token = string.match(form, "name=\"token\" value=\"([^\"]+)\"")
           if string.match(form, "<input[^>]+name=\"password\"") then
-            body_data = "password=" .. urlparse.escape(urlparse.unescape(passwords[item_key]))
+            if not password_candidates then
+              password_candidates = cjson.decode(read_file("passwords_from_text.json"))
+              for item, sources in pairs(cjson.decode(read_file("passwords_from_sources.json"))) do
+                if not password_candidates[item] then
+                  password_candidates[item] = {}
+                end
+                for _, source in ipairs(sources) do
+                  table.insert(password_candidates[item], source["password"])
+                end
+              end
+            end
+            local candidates = password_candidates[item_key] or {}
+            local password = candidates[1]
+            if string.match(request_body, "^password=") then
+              password = nil
+              for i, candidate in ipairs(candidates) do
+                if request_body == "password=" .. candidate then
+                  password = candidates[i + 1]
+                  break
+                end
+              end
+            end
+            if not password then
+              print("Password required.")
+              abort_item()
+              return urls
+            end
+            body_data = "password=" .. password
           elseif token then
             body_data = "token=" .. urlparse.escape(decode_html(token))
           end
@@ -609,8 +635,10 @@ wget.callbacks.dedup_response = function(url, digest)
 end
 
 wget.callbacks.write_to_warc = function(url, http_stat)
+  local write_warc = true
   local headers = http_stat["response_headers"]["headers"]
   status_code = http_stat["statcode"]
+  request_body = http_stat["request_body"] or ""
   local content_type = headers["content-type"] and string.lower(headers["content-type"][1]) or ""
   set_item(url["url"])
 
@@ -713,7 +741,6 @@ wget.callbacks.write_to_warc = function(url, http_stat)
       end
     else
       local html = read_file(http_stat["local_file"])
-      local request_body = http_stat["request_body"] or ""
       if string.match(html, "name=\"q\" value=\"security_auth\"") then
         print("Uploader password required.")
         abort_item()
@@ -757,15 +784,9 @@ wget.callbacks.write_to_warc = function(url, http_stat)
               ["description"]=string.match(html, "<meta name=\"description\" content=\"([^\"]*)\"") or cjson.null,
               ["uploader_description"]=string.match(html, "<h3 class=\"lead\">(.-)</h3>") or cjson.null
             }
-            if not passwords[item_key] then
-              print("Password required.")
-              abort_item()
-              return false
-            end
             if string.match(request_body, "^password=") then
               print("Password use failed.")
-              abort_item()
-              return false
+              write_warc = false
             end
           end
           if (token or protected) and string.match(request_body, "^token=") then
@@ -908,7 +929,7 @@ wget.callbacks.write_to_warc = function(url, http_stat)
 
   retry_url = false
   tries = 0
-  return true
+  return write_warc
 end
 
 wget.callbacks.httploop_result = function(url, err, http_stat)
