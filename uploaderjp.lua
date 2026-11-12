@@ -469,7 +469,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
       html = read_file(file)
       local base, path = string.match(url, "^(https?://[^/]+/[^/%?#]+)(.*)$")
       if age_confirmation(html) then
-        os.execute("sleep 5")
+        os.execute("sleep 2")
         check(url, "q=age_confirmation")
         return urls
       elseif item_type == "file" then
@@ -484,7 +484,7 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
           end
         end
         if body_data then
-          os.execute("sleep 5")
+          os.execute("sleep 2")
           check(url, body_data)
         else
           local download_url = string.match(html, "<a href=\"([^\"]+)\"[^>]*>Download Now</a>")
