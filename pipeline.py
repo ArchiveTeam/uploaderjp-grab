@@ -72,7 +72,7 @@ if not WGET_AT:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20261112.02'
+VERSION = '20261113.01'
 TRACKER_ID = 'uploaderjp'
 TRACKER_HOST = 'legacy-api.arpa.li'
 MULTI_ITEM_SIZE = 1
@@ -136,25 +136,17 @@ class CheckIP(SimpleTask):
         ]
         if 'bind_address' in globals():
             command.extend(['--bind-address', globals()['bind_address']])
-        for base in (
-            'https://uu.getuploader.com/luppi03/',
-            'https://u1.getuploader.com/sample/'
-        ):
-            url = base + 'rss'
-            returned = subprocess.run(
-                command+[url],
-                timeout=20,
-                capture_output=True
-            )
-            assert returned.returncode == 0, 'Invalid return code {} on {}.'.format(returned.returncode, url)
-            assert re.match(rb'^HTTP/1\.1 200 OK\r\n', returned.stdout), 'Bad stdout on {}, got {}.'.format(url, repr(returned.stdout))
-            data = returned.stdout.split(b'\r\n\r\n', 1)[1]
-            rss = re.search(
-                rb'<rss version="2\.0">\s*<channel>.*?<link>([^<]+)</link>.*?</channel>\s*</rss>\s*$',
-                data,
-                re.S
-            )
-            assert rss is not None and rss.group(1) == bytes(base, 'utf8'), 'Bad RSS on {}, got {}.'.format(url, repr(data))
+        url = 'https://r.getuploader.com/css/uploader.css'
+        returned = subprocess.run(
+            command+[url],
+            timeout=20,
+            capture_output=True
+        )
+        assert returned.returncode == 0, 'Invalid return code {} on {}.'.format(returned.returncode, url)
+        assert re.search(rb'^HTTP/1\.1 200 OK\r\n', returned.stdout), 'Bad stdout on {}, got {}.'.format(url, repr(returned.stdout))
+        headers, data = returned.stdout.split(b'\r\n\r\n', 1)
+        assert re.search(rb'\r\nContent-Type: text/css\r\n', headers + b'\r\n'), 'Bad Content-Type on {}, got {}.'.format(url, repr(headers))
+        assert re.search(rb'^body \{\n.*\.download:link,.*\}\s*$', data, re.S), 'Bad CSS on {}, got {}.'.format(url, repr(data))
 
         # Check only occasionally
         if self._counter <= 0:

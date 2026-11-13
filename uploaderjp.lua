@@ -488,7 +488,9 @@ wget.callbacks.get_urls = function(file, url, is_css, iri)
                 end
               end
             end
-            local candidates = password_candidates[item_key] or {}
+            local candidates = password_candidates[item_key]
+              or password_candidates[string.match(item_key, "^(.-:)[0-9]+$")]
+              or {}
             local password = candidates[1]
             if string.match(request_body, "^password=") then
               password = nil
