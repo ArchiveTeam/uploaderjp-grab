@@ -72,7 +72,7 @@ if not WGET_AT:
 #
 # Update this each time you make a non-cosmetic change.
 # It will be added to the WARC files and reported to the tracker.
-VERSION = '20261113.01'
+VERSION = '20261113.02'
 TRACKER_ID = 'uploaderjp'
 TRACKER_HOST = 'legacy-api.arpa.li'
 MULTI_ITEM_SIZE = 1
@@ -153,6 +153,11 @@ class CheckIP(SimpleTask):
             self._counter = 20
         else:
             self._counter -= 1
+
+
+def warrior_check(item):
+    CheckIP().process(item)
+    return {'runnable': True}
 
 
 class PrepareDirectories(SimpleTask):
